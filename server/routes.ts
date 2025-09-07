@@ -189,6 +189,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get video progress
+  app.get("/api/video-progress/:fileId", async (req, res) => {
+    try {
+      const userId = "default-user"; // For now, use a default user
+      const { fileId } = req.params;
+      
+      const progress = await storage.getVideoProgress(userId, fileId);
+      res.json(progress || { currentTime: 0, duration: 0, isWatched: false });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get video progress" });
+    }
+  });
+
+  // Save video progress
+  app.post("/api/video-progress/:fileId", async (req, res) => {
+    try {
+      const userId = "default-user"; // For now, use a default user
+      const { fileId } = req.params;
+      const { currentTime, duration, isWatched } = req.body;
+
+      const progressData = {
+        userId,
+        fileId,
+        currentTime: parseInt(currentTime) || 0,
+        duration: parseInt(duration) || 0,
+        isWatched: Boolean(isWatched),
+        lastWatched: new Date(),
+      };
+
+      const progress = await storage.saveVideoProgress(progressData);
+      res.json(progress);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to save video progress" });
+    }
+  });
+
+  // Get user's all video progress
+  app.get("/api/video-progress", async (req, res) => {
+    try {
+      const userId = "default-user"; // For now, use a default user
+      const progressList = await storage.getUserVideoProgress(userId);
+      res.json(progressList);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get user video progress" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

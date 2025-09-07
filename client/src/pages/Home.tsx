@@ -17,13 +17,51 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showFileInfo, setShowFileInfo] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [fileFilters, setFileFilters] = useState({
+    hideSubtitles: false,
+    hideUrls: false,
+    hideDocuments: false,
+    showOnlyVideos: false,
+    showOnlyImages: false,
+  });
 
   const { data: directories = [] } = useQuery<Directory[]>({
     queryKey: ["/api/directories"],
   });
 
-  const { data: files = [] } = useQuery<File[]>({
+  const { data: allFiles = [] } = useQuery<File[]>({
     queryKey: ["/api/files", selectedDirectory, searchQuery],
+  });
+
+  // Filter files based on user preferences
+  const files = allFiles.filter(file => {
+    // Hide subtitle files (.srt, .vtt, .ass, etc.)
+    if (fileFilters.hideSubtitles && ['.srt', '.vtt', '.ass', '.ssa', '.sub'].includes(file.extension.toLowerCase())) {
+      return false;
+    }
+    
+    // Hide URL files (.url, .webloc)
+    if (fileFilters.hideUrls && ['.url', '.webloc'].includes(file.extension.toLowerCase())) {
+      return false;
+    }
+    
+    // Hide document files
+    if (fileFilters.hideDocuments && file.type === 'document') {
+      return false;
+    }
+    
+    // Show only videos
+    if (fileFilters.showOnlyVideos && file.type !== 'video') {
+      return false;
+    }
+    
+    // Show only images
+    if (fileFilters.showOnlyImages && file.type !== 'image') {
+      return false;
+    }
+    
+    return true;
   });
 
   const { data: stats } = useQuery<{ totalFiles: number; totalSize: number }>({
@@ -102,6 +140,18 @@ export default function Home() {
                 />
               </div>
 
+              {/* Filter Button */}
+              <Button
+                data-testid="button-filters"
+                size="sm"
+                variant={showFilters ? "default" : "outline"}
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center space-x-2"
+              >
+                <i className="fas fa-filter text-sm"></i>
+                <span>Filters</span>
+              </Button>
+
               {/* View Toggle */}
               <div className="flex bg-muted rounded-lg p-1">
                 <Button
@@ -142,6 +192,14 @@ export default function Home() {
           {/* File Count and Size */}
           <div className="mt-3 flex items-center space-x-6 text-sm text-muted-foreground">
             <span data-testid="text-file-count">{files.length} items</span>
+            {allFiles.length !== files.length && (
+              <>
+                <span>•</span>
+                <span data-testid="text-filtered-count">
+                  ({allFiles.length - files.length} filtered out)
+                </span>
+              </>
+            )}
             <span>•</span>
             <span data-testid="text-total-size">
               {formatFileSize(files.reduce((sum, file) => sum + file.size, 0))} total
@@ -149,6 +207,94 @@ export default function Home() {
             <span>•</span>
             <span data-testid="text-last-updated">Last updated 5 minutes ago</span>
           </div>
+
+          {/* Filter Panel */}
+          {showFilters && (
+            <div className="mt-4 p-4 bg-muted/50 rounded-lg border">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    data-testid="checkbox-hide-subtitles"
+                    type="checkbox"
+                    id="hideSubtitles"
+                    checked={fileFilters.hideSubtitles}
+                    onChange={(e) => setFileFilters({...fileFilters, hideSubtitles: e.target.checked})}
+                    className="rounded border-input"
+                  />
+                  <label htmlFor="hideSubtitles" className="text-sm">Hide Subtitles</label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    data-testid="checkbox-hide-urls"
+                    type="checkbox"
+                    id="hideUrls"
+                    checked={fileFilters.hideUrls}
+                    onChange={(e) => setFileFilters({...fileFilters, hideUrls: e.target.checked})}
+                    className="rounded border-input"
+                  />
+                  <label htmlFor="hideUrls" className="text-sm">Hide URL Files</label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    data-testid="checkbox-hide-documents"
+                    type="checkbox"
+                    id="hideDocuments"
+                    checked={fileFilters.hideDocuments}
+                    onChange={(e) => setFileFilters({...fileFilters, hideDocuments: e.target.checked})}
+                    className="rounded border-input"
+                  />
+                  <label htmlFor="hideDocuments" className="text-sm">Hide Documents</label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    data-testid="checkbox-show-only-videos"
+                    type="checkbox"
+                    id="showOnlyVideos"
+                    checked={fileFilters.showOnlyVideos}
+                    onChange={(e) => setFileFilters({...fileFilters, showOnlyVideos: e.target.checked, showOnlyImages: false})}
+                    className="rounded border-input"
+                  />
+                  <label htmlFor="showOnlyVideos" className="text-sm">Videos Only</label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    data-testid="checkbox-show-only-images"
+                    type="checkbox"
+                    id="showOnlyImages"
+                    checked={fileFilters.showOnlyImages}
+                    onChange={(e) => setFileFilters({...fileFilters, showOnlyImages: e.target.checked, showOnlyVideos: false})}
+                    className="rounded border-input"
+                  />
+                  <label htmlFor="showOnlyImages" className="text-sm">Images Only</label>
+                </div>
+              </div>
+
+              <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  Showing {files.length} of {allFiles.length} files
+                </span>
+                <Button
+                  data-testid="button-clear-filters"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setFileFilters({
+                    hideSubtitles: false,
+                    hideUrls: false,
+                    hideDocuments: false,
+                    showOnlyVideos: false,
+                    showOnlyImages: false,
+                  })}
+                  className="text-xs"
+                >
+                  Clear All Filters
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* File Grid */}
