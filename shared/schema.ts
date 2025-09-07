@@ -50,6 +50,18 @@ export const scanJobs = pgTable("scan_jobs", {
   error: text("error"),
 });
 
+export const videoProgress = pgTable("video_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  fileId: varchar("file_id").notNull(),
+  currentTime: integer("current_time").default(0), // Progress in seconds
+  duration: integer("duration").default(0), // Total duration in seconds
+  isWatched: boolean("is_watched").default(false), // Mark as watched when >90% viewed
+  lastWatched: timestamp("last_watched").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -71,6 +83,12 @@ export const insertScanJobSchema = createInsertSchema(scanJobs).omit({
   id: true,
 });
 
+export const insertVideoProgressSchema = createInsertSchema(videoProgress).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Directory = typeof directories.$inferSelect;
@@ -79,3 +97,5 @@ export type File = typeof files.$inferSelect;
 export type InsertFile = z.infer<typeof insertFileSchema>;
 export type ScanJob = typeof scanJobs.$inferSelect;
 export type InsertScanJob = z.infer<typeof insertScanJobSchema>;
+export type VideoProgress = typeof videoProgress.$inferSelect;
+export type InsertVideoProgress = z.infer<typeof insertVideoProgressSchema>;
