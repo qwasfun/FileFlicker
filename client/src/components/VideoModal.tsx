@@ -25,20 +25,30 @@ export default function VideoModal({ file, open, onClose }: VideoModalProps) {
   });
 
   // Get video progress
-  const { data: progress } = useQuery({
-    queryKey: ["/api/video-progress", file.id],
+  const { data: progress } = useQuery<{
+    currentTime: number;
+    duration: number;
+    isWatched: boolean;
+  }>({
+    queryKey: [`/api/video-progress/${file.id}`],
     enabled: open && file.type === "video",
   });
 
   // Save video progress mutation
   const saveProgressMutation = useMutation({
-    mutationFn: (progressData: { currentTime: number; duration: number; isWatched: boolean }) =>
-      apiRequest(`/api/video-progress/${file.id}`, {
+    mutationFn: async (progressData: { currentTime: number; duration: number; isWatched: boolean }) => {
+      const response = await fetch(`/api/video-progress/${file.id}`, {
         method: "POST",
-        body: progressData,
-      }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(progressData),
+      });
+      if (!response.ok) throw new Error("Failed to save progress");
+      return response.json();
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/video-progress", file.id] });
+      queryClient.invalidateQueries({ queryKey: [`/api/video-progress/${file.id}`] });
     },
   });
 
