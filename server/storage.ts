@@ -1,9 +1,10 @@
 import { 
-  users, directories, files, scanJobs,
+  users, directories, files, scanJobs, videoProgress,
   type User, type InsertUser,
   type Directory, type InsertDirectory,
   type File, type InsertFile,
-  type ScanJob, type InsertScanJob
+  type ScanJob, type InsertScanJob,
+  type VideoProgress, type InsertVideoProgress
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, like, and } from "drizzle-orm";
@@ -35,6 +36,12 @@ export interface IStorage {
   
   // Statistics
   getTotalStats(): Promise<{ totalFiles: number; totalSize: number }>;
+  
+  // Video progress operations
+  getVideoProgress(userId: string, fileId: string): Promise<VideoProgress | undefined>;
+  saveVideoProgress(progress: InsertVideoProgress): Promise<VideoProgress>;
+  updateVideoProgress(userId: string, fileId: string, updates: Partial<VideoProgress>): Promise<VideoProgress>;
+  getUserVideoProgress(userId: string): Promise<VideoProgress[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -170,6 +177,50 @@ export class DatabaseStorage implements IStorage {
       totalFiles: result[0]?.totalFiles || 0,
       totalSize: result[0]?.totalSize || 0
     };
+  }
+
+  async getVideoProgress(userId: string, fileId: string): Promise<VideoProgress | undefined> {
+    const [progress] = await db
+      .select()
+      .from(videoProgress)
+      .where(and(eq(videoProgress.userId, userId), eq(videoProgress.fileId, fileId)));
+    return progress || undefined;
+  }
+
+  async saveVideoProgress(progress: InsertVideoProgress): Promise<VideoProgress> {
+    const existing = await this.getVideoProgress(progress.userId, progress.fileId);
+    
+    if (existing) {
+      return await this.updateVideoProgress(progress.userId, progress.fileId, {
+        currentTime: progress.currentTime,
+        duration: progress.duration,
+        isWatched: progress.isWatched,
+        lastWatched: new Date(),
+      });
+    }
+
+    const [created] = await db
+      .insert(videoProgress)
+      .values(progress)
+      .returning();
+    return created;
+  }
+
+  async updateVideoProgress(userId: string, fileId: string, updates: Partial<VideoProgress>): Promise<VideoProgress> {
+    const [updated] = await db
+      .update(videoProgress)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(videoProgress.userId, userId), eq(videoProgress.fileId, fileId)))
+      .returning();
+    return updated;
+  }
+
+  async getUserVideoProgress(userId: string): Promise<VideoProgress[]> {
+    return await db
+      .select()
+      .from(videoProgress)
+      .where(eq(videoProgress.userId, userId))
+      .orderBy(desc(videoProgress.lastWatched));
   }
 }
 
