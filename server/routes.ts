@@ -129,7 +129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve subtitle file
   app.get("/api/subtitles/*", (req, res) => {
     try {
-      const subtitlePath = req.params[0];
+      const subtitlePath = (req.params as any)["0"];
       if (!fs.existsSync(subtitlePath)) {
         return res.status(404).json({ error: "Subtitle file not found" });
       }
@@ -178,7 +178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve thumbnail images
   app.get("/api/thumbnails/*", (req, res) => {
     try {
-      const thumbnailPath = req.params[0];
+      const thumbnailPath = (req.params as any)["0"];
       if (!fs.existsSync(thumbnailPath)) {
         return res.status(404).json({ error: "Thumbnail not found" });
       }

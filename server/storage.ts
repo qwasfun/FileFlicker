@@ -6,7 +6,7 @@ import {
   type ScanJob, type InsertScanJob
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, like } from "drizzle-orm";
+import { eq, desc, sql, like, and } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -88,17 +88,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getFiles(directoryId?: string, search?: string): Promise<File[]> {
-    let query = db.select().from(files);
+    const conditions = [];
     
     if (directoryId) {
-      query = query.where(eq(files.directoryId, directoryId));
+      conditions.push(eq(files.directoryId, directoryId));
     }
     
     if (search) {
-      query = query.where(like(files.name, `%${search}%`));
+      conditions.push(like(files.name, `%${search}%`));
     }
     
-    return await query.orderBy(desc(files.updatedAt));
+    if (conditions.length > 0) {
+      return await db.select().from(files).where(and(...conditions)).orderBy(desc(files.updatedAt));
+    }
+    
+    return await db.select().from(files).orderBy(desc(files.updatedAt));
   }
 
   async getFile(id: string): Promise<File | undefined> {
