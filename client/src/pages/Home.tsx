@@ -30,8 +30,12 @@ export default function Home() {
     queryKey: ["/api/directories"],
   });
 
+  const fetchFiles = (directoryId:string,search:string) =>
+  fetch('/api/files?directoryId=' + directoryId+'&search='+search).then((res) => res.json())
+
   const { data: allFiles = [] } = useQuery<File[]>({
     queryKey: ["/api/files", selectedDirectory, searchQuery],
+    queryFn:()=>fetchFiles(selectedDirectory,searchQuery)
   });
 
   // Filter files based on user preferences
