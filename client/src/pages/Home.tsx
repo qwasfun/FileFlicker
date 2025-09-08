@@ -39,7 +39,7 @@ export default function Home() {
   });
 
   // Filter files based on user preferences
-  const files = allFiles.filter(file => {
+  const filteredFiles = allFiles.filter(file => {
     // Hide subtitle files (.srt, .vtt, .ass, etc.)
     if (fileFilters.hideSubtitles && ['.srt', '.vtt', '.ass', '.ssa', '.sub'].includes(file.extension.toLowerCase())) {
       return false;
@@ -66,6 +66,22 @@ export default function Home() {
     }
     
     return true;
+  });
+
+  // Sort files based on sortBy
+  const files = [...filteredFiles].sort((a, b) => {
+    switch (sortBy) {
+      case "name":
+        return a.name.localeCompare(b.name);
+      case "date":
+        return Number(b.modifiedAt ?? 0) - Number(a.modifiedAt ?? 0);
+      case "size":
+        return b.size - a.size;
+      case "type":
+        return a.type.localeCompare(b.type);
+      default:
+        return 0;
+    }
   });
 
   const { data: stats } = useQuery<{ totalFiles: number; totalSize: number }>({
@@ -183,7 +199,7 @@ export default function Home() {
                 <SelectTrigger data-testid="select-sort" className="w-40">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="name">Sort by Name</SelectItem>
                   <SelectItem value="date">Sort by Date</SelectItem>
                   <SelectItem value="size">Sort by Size</SelectItem>
