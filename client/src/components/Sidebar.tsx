@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import type { Directory, ScanJob } from "@shared/schema";
 
@@ -12,11 +12,37 @@ interface SidebarProps {
 
 export default function Sidebar({ directories, selectedDirectory, onDirectorySelect, stats }: SidebarProps) {
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+  const queryClient = useQueryClient();
 
   const { data: scanJob } = useQuery<ScanJob>({
     queryKey: ["/api/scan/status"],
     refetchInterval: 2000, // Poll every 2 seconds
   });
+
+  const startScanMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/scan/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to start scan");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate scan status to immediately show the new scan
+      queryClient.invalidateQueries({ queryKey: ["/api/scan/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/directories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/files"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+    },
+  });
+
+  const handleRefreshScan = () => {
+    startScanMutation.mutate();
+  };
 
   const toggleDirectory = (dirId: string) => {
     const newExpanded = new Set(expandedDirs);
@@ -125,8 +151,11 @@ export default function Sidebar({ directories, selectedDirectory, onDirectorySel
             variant="ghost"
             size="sm"
             className="ml-auto p-1 h-auto text-xs text-primary hover:text-primary/80"
+            onClick={handleRefreshScan}
+            disabled={scanJob?.status === 'scanning' || startScanMutation.isPending}
+            title="手动扫描目录"
           >
-            <i className="fas fa-sync-alt"></i>
+            <i className={`fas fa-sync-alt ${startScanMutation.isPending ? 'fa-spin' : ''}`}></i>
           </Button>
         </div>
         {scanJob && (

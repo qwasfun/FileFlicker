@@ -276,6 +276,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Start manual scan
+  app.post("/api/scan/start", async (req, res) => {
+    try {
+      const scanDirectory = process.env.SCAN_DIRECTORY || "./data";
+      await fileScanner.startScan(scanDirectory);
+      res.json({ message: "Scan started successfully" });
+    } catch (error) {
+      if (error instanceof Error && error.message === "Scan already in progress") {
+        res.status(409).json({ error: "Scan already in progress" });
+      } else {
+        res.status(500).json({ error: "Failed to start scan" });
+      }
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
