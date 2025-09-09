@@ -16,7 +16,7 @@ class FileScanner {
   }
 
   private async scheduledScan() {
-    const scanDirectory = process.env.SCAN_DIRECTORY || "./data";
+    const scanDirectory = process.env.SCAN_DIRECTORY || "data";
     if (this.currentScanJob) {
       console.log("Scan already in progress, skipping scheduled scan");
       return;
