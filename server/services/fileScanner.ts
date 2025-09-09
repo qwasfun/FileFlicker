@@ -6,6 +6,7 @@ import type { InsertDirectory, InsertFile } from "@shared/schema";
 
 class FileScanner {
   private currentScanJob: string | null = null;
+  private deletedFiles: string[] = []; // Track files that exist in DB but not on disk
   
   constructor() {
     // Schedule scan every 5 minutes
@@ -46,6 +47,9 @@ class FileScanner {
 
     try {
       await this.scanDirectory(directory, scanJob.id);
+      
+      // Check for deleted files after scanning
+      await this.checkForDeletedFiles(scanJob.id);
       
       await storage.updateScanJob(scanJob.id, {
         status: "completed",
@@ -177,6 +181,53 @@ class FileScanner {
     }
 
     return subtitlePaths;
+  }
+
+  private async checkForDeletedFiles(scanJobId: string): Promise<void> {
+    console.log("Checking for deleted files...");
+    this.deletedFiles = [];
+
+    try {
+      // Get all files from database
+      const allFiles = await storage.getAllFiles();
+      
+      for (const file of allFiles) {
+        try {
+          // Check if file still exists on disk
+          await fs.access(file.path);
+        } catch (error) {
+          // File doesn't exist on disk anymore
+          this.deletedFiles.push(file.id);
+          console.log(`Found deleted file: ${file.name} (${file.path})`);
+        }
+      }
+
+      if (this.deletedFiles.length > 0) {
+        console.log(`Found ${this.deletedFiles.length} deleted files`);
+      }
+    } catch (error) {
+      console.error("Error checking for deleted files:", error);
+    }
+  }
+
+  getDeletedFiles(): string[] {
+    return [...this.deletedFiles];
+  }
+
+  async cleanupDeletedFiles(fileIds: string[]): Promise<void> {
+    for (const fileId of fileIds) {
+      try {
+        await storage.deleteFile(fileId);
+        // Remove from our tracking list
+        const index = this.deletedFiles.indexOf(fileId);
+        if (index > -1) {
+          this.deletedFiles.splice(index, 1);
+        }
+        console.log(`Cleaned up deleted file with ID: ${fileId}`);
+      } catch (error) {
+        console.error(`Error cleaning up file ${fileId}:`, error);
+      }
+    }
   }
 }
 

@@ -42,6 +42,10 @@ export interface IStorage {
   saveVideoProgress(progress: InsertVideoProgress): Promise<VideoProgress>;
   updateVideoProgress(userId: string, fileId: string, updates: Partial<VideoProgress>): Promise<VideoProgress>;
   getUserVideoProgress(userId: string): Promise<VideoProgress[]>;
+  
+  // File cleanup operations
+  getAllFiles(): Promise<File[]>;
+  getDeletedFilesByIds(fileIds: string[]): Promise<File[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -221,6 +225,19 @@ export class DatabaseStorage implements IStorage {
       .from(videoProgress)
       .where(eq(videoProgress.userId, userId))
       .orderBy(desc(videoProgress.lastWatched));
+  }
+
+  async getAllFiles(): Promise<File[]> {
+    return await db.select().from(files);
+  }
+
+  async getDeletedFilesByIds(fileIds: string[]): Promise<File[]> {
+    if (fileIds.length === 0) return [];
+    
+    return await db
+      .select()
+      .from(files)
+      .where(sql`${files.id} = ANY(${fileIds})`);
   }
 }
 
