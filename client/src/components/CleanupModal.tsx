@@ -83,7 +83,7 @@ export default function CleanupModal({ open, onClose }: CleanupModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh]">
+      <DialogContent className="max-w-4xl max-h-[80vh] bg-background border">
         <DialogHeader>
           <DialogTitle>数据库清理 - 已删除的文件</DialogTitle>
         </DialogHeader>
