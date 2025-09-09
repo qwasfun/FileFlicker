@@ -150,18 +150,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Start scan
+  // Start manual scan
   app.post("/api/scan/start", async (req, res) => {
     try {
-      const { directory } = req.body;
-      if (!directory) {
-        return res.status(400).json({ error: "Directory path is required" });
-      }
-
-      await fileScanner.startScan(directory);
-      res.json({ message: "Scan started" });
+      const scanDirectory = process.env.SCAN_DIRECTORY || "./data";
+      await fileScanner.startScan(scanDirectory);
+      res.json({ message: "Scan started successfully" });
     } catch (error) {
-      res.status(500).json({ error: "Failed to start scan" });
+      if (error instanceof Error && error.message === "Scan already in progress") {
+        res.status(409).json({ error: "Scan already in progress" });
+      } else {
+        res.status(500).json({ error: "Failed to start scan" });
+      }
     }
   });
 
@@ -273,21 +273,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to get cleanup status" });
-    }
-  });
-
-  // Start manual scan
-  app.post("/api/scan/start", async (req, res) => {
-    try {
-      const scanDirectory = process.env.SCAN_DIRECTORY || "./data";
-      await fileScanner.startScan(scanDirectory);
-      res.json({ message: "Scan started successfully" });
-    } catch (error) {
-      if (error instanceof Error && error.message === "Scan already in progress") {
-        res.status(409).json({ error: "Scan already in progress" });
-      } else {
-        res.status(500).json({ error: "Failed to start scan" });
-      }
     }
   });
 
