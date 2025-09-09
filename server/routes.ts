@@ -236,6 +236,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get deleted files (files that exist in DB but not on disk)
+  app.get("/api/cleanup/deleted-files", async (req, res) => {
+    try {
+      const deletedFileIds = fileScanner.getDeletedFiles();
+      const deletedFiles = await storage.getDeletedFilesByIds(deletedFileIds);
+      res.json(deletedFiles);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get deleted files" });
+    }
+  });
+
+  // Cleanup deleted files from database
+  app.post("/api/cleanup/delete-files", async (req, res) => {
+    try {
+      const { fileIds } = req.body;
+      
+      if (!Array.isArray(fileIds)) {
+        return res.status(400).json({ error: "fileIds must be an array" });
+      }
+
+      await fileScanner.cleanupDeletedFiles(fileIds);
+      res.json({ message: `Successfully cleaned up ${fileIds.length} files from database` });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to cleanup deleted files" });
+    }
+  });
+
+  // Get cleanup status (number of deleted files found)
+  app.get("/api/cleanup/status", async (req, res) => {
+    try {
+      const deletedFileIds = fileScanner.getDeletedFiles();
+      res.json({ 
+        deletedFileCount: deletedFileIds.length,
+        hasDeletedFiles: deletedFileIds.length > 0 
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get cleanup status" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

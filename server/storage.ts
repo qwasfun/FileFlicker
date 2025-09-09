@@ -234,10 +234,11 @@ export class DatabaseStorage implements IStorage {
   async getDeletedFilesByIds(fileIds: string[]): Promise<File[]> {
     if (fileIds.length === 0) return [];
     
+    const conditions = fileIds.map(id => eq(files.id, id));
     return await db
       .select()
       .from(files)
-      .where(sql`${files.id} = ANY(${fileIds})`);
+      .where(and(...conditions));
   }
 }
 

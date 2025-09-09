@@ -4,6 +4,7 @@ import Sidebar from "@/components/Sidebar";
 import FileGrid from "@/components/FileGrid";
 import VideoModal from "@/components/VideoModal";
 import FileInfoModal from "@/components/FileInfoModal";
+import CleanupModal from "@/components/CleanupModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,6 +19,7 @@ export default function Home() {
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showFileInfo, setShowFileInfo] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
   const [fileFilters, setFileFilters] = useState({
     hideSubtitles: false,
     hideUrls: false,
@@ -86,6 +88,11 @@ export default function Home() {
 
   const { data: stats } = useQuery<{ totalFiles: number; totalSize: number }>({
     queryKey: ["/api/stats"],
+  });
+
+  const { data: cleanupStatus } = useQuery<{ deletedFileCount: number; hasDeletedFiles: boolean }>({
+    queryKey: ["/api/cleanup/status"],
+    refetchInterval: 30000, // Check every 30 seconds
   });
 
   const handleFileSelect = (file: File) => {
@@ -171,6 +178,20 @@ export default function Home() {
                 <i className="fas fa-filter text-sm"></i>
                 <span>Filters</span>
               </Button>
+
+              {/* Cleanup Button */}
+              {cleanupStatus?.hasDeletedFiles && (
+                <Button
+                  data-testid="button-cleanup"
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setShowCleanupModal(true)}
+                  className="flex items-center space-x-2"
+                >
+                  <i className="fas fa-trash text-sm"></i>
+                  <span>清理 ({cleanupStatus.deletedFileCount})</span>
+                </Button>
+              )}
 
               {/* View Toggle */}
               <div className="flex bg-muted rounded-lg p-1">
@@ -348,6 +369,11 @@ export default function Home() {
           />
         </>
       )}
+      
+      <CleanupModal
+        open={showCleanupModal}
+        onClose={() => setShowCleanupModal(false)}
+      />
     </div>
   );
 }
