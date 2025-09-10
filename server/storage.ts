@@ -177,8 +177,8 @@ export class DatabaseStorage implements IStorage {
   async getTotalStats(): Promise<{ totalFiles: number; totalSize: number }> {
     const result = await db
       .select({
-        totalFiles: sql<number>`count(*)::int`,
-        totalSize: sql<number>`sum(${files.size})::int`
+        totalFiles: sql<number>`count(*)::bigint`,
+        totalSize: sql<number>`sum(${files.size})::bigint`
       })
       .from(files);
     
