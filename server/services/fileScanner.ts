@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import fs from "fs/promises";
+import { Dirent, Stats } from "fs";
 import path from "path";
 import { storage } from "../storage";
 import type { InsertDirectory, InsertFile } from "@shared/schema";
@@ -83,62 +84,113 @@ class FileScanner {
         directory = await storage.createDirectory(directoryData);
       }
 
-      let fileCount = 0;
-      let totalSize = 0;
-
+      // Process subdirectories recursively
       for (const entry of entries) {
-        const fullPath = path.join(dirPath, entry.name);
-
         if (entry.isDirectory()) {
+          const fullPath = path.join(dirPath, entry.name);
           await this.scanDirectory(fullPath, scanJobId, directory.id);
-        } else if (entry.isFile()) {
-          const fileStats = await fs.stat(fullPath);
-          const extension = path.extname(entry.name).toLowerCase();
-          const fileType = this.getFileType(extension);
-          
-          let existingFile = await storage.getFileByPath(fullPath);
-          
-          if (!existingFile || existingFile.modifiedAt !== fileStats.mtime) {
-            const fileData: InsertFile = {
-              name: entry.name,
-              path: fullPath,
-              directoryId: directory.id,
-              type: fileType,
-              extension: extension,
-              size: fileStats.size,
-              modifiedAt: fileStats.mtime,
-              hasSubtitles: false,
-              subtitlePaths: []
-            };
-
-            // Check for subtitles if it's a video file
-            if (fileType === 'video') {
-              const subtitlePaths = await this.findSubtitleFiles(fullPath);
-              fileData.hasSubtitles = subtitlePaths.length > 0;
-              fileData.subtitlePaths = subtitlePaths;
-            }
-
-            if (existingFile) {
-              await storage.updateFile(existingFile.id, fileData);
-            } else {
-              await storage.createFile(fileData);
-            }
-          }
-
-          fileCount++;
-          totalSize += fileStats.size;
         }
       }
 
-      // Update directory stats
-      await storage.updateDirectory(directory.id, {
-        fileCount,
-        totalSize
-      });
+      // Batch process files in this directory
+      await this.batchProcessFiles(entries, dirPath, directory.id);
 
     } catch (error) {
       console.error(`Error scanning directory ${dirPath}:`, error);
     }
+  }
+
+  private async batchProcessFiles(entries: Dirent[], dirPath: string, directoryId: string): Promise<void> {
+    const fileEntries = entries.filter(entry => entry.isFile());
+    if (fileEntries.length === 0) return;
+
+    // Collect file information
+    const fileInfos: Array<{ entry: Dirent; fullPath: string; stats: Stats; extension: string; fileType: string }> = [];
+    
+    for (const entry of fileEntries) {
+      const fullPath = path.join(dirPath, entry.name);
+      try {
+        const fileStats = await fs.stat(fullPath);
+        const extension = path.extname(entry.name).toLowerCase();
+        const fileType = this.getFileType(extension);
+        
+        fileInfos.push({
+          entry,
+          fullPath,
+          stats: fileStats,
+          extension,
+          fileType
+        });
+      } catch (error) {
+        console.error(`Error getting stats for ${fullPath}:`, error);
+      }
+    }
+
+    if (fileInfos.length === 0) return;
+
+    // Batch query existing files
+    const filePaths = fileInfos.map(info => info.fullPath);
+    const existingFiles = await storage.getFilesByPaths(filePaths);
+    const existingFileMap = new Map(existingFiles.map(file => [file.path, file]));
+
+    // Separate files to create and update
+    const filesToCreate: InsertFile[] = [];
+    const filesToUpdate: { id: string; data: Partial<File> }[] = [];
+    
+    let fileCount = 0;
+    let totalSize = 0;
+
+    for (const info of fileInfos) {
+      const existingFile = existingFileMap.get(info.fullPath);
+      const needsUpdate = !existingFile || existingFile.modifiedAt !== info.stats.mtime;
+      
+      if (needsUpdate) {
+        const fileData: InsertFile = {
+          name: info.entry.name,
+          path: info.fullPath,
+          directoryId: directoryId,
+          type: info.fileType,
+          extension: info.extension,
+          size: info.stats.size,
+          modifiedAt: info.stats.mtime,
+          hasSubtitles: false,
+          subtitlePaths: []
+        };
+
+        // Check for subtitles if it's a video file
+        if (info.fileType === 'video') {
+          const subtitlePaths = await this.findSubtitleFiles(info.fullPath);
+          fileData.hasSubtitles = subtitlePaths.length > 0;
+          fileData.subtitlePaths = subtitlePaths;
+        }
+
+        if (existingFile) {
+          filesToUpdate.push({ id: existingFile.id, data: fileData });
+        } else {
+          filesToCreate.push(fileData);
+        }
+      }
+
+      fileCount++;
+      totalSize += info.stats.size;
+    }
+
+    // Execute batch operations
+    console.log(`Batch processing: ${filesToCreate.length} files to create, ${filesToUpdate.length} files to update`);
+    
+    if (filesToCreate.length > 0) {
+      await storage.batchCreateFiles(filesToCreate);
+    }
+    
+    if (filesToUpdate.length > 0) {
+      await storage.batchUpdateFiles(filesToUpdate);
+    }
+
+    // Update directory stats
+    await storage.updateDirectory(directoryId, {
+      fileCount,
+      totalSize
+    });
   }
 
   private getFileType(extension: string): string {

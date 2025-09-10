@@ -46,6 +46,11 @@ export interface IStorage {
   // File cleanup operations
   getAllFiles(): Promise<File[]>;
   getDeletedFilesByIds(fileIds: string[]): Promise<File[]>;
+  
+  // Batch operations
+  getFilesByPaths(paths: string[]): Promise<File[]>;
+  batchCreateFiles(files: InsertFile[]): Promise<File[]>;
+  batchUpdateFiles(updates: { id: string; data: Partial<File> }[]): Promise<File[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -239,6 +244,43 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(files)
       .where(or(...conditions));
+  }
+
+  async getFilesByPaths(paths: string[]): Promise<File[]> {
+    if (paths.length === 0) return [];
+    
+    const conditions = paths.map(path => eq(files.path, path));
+    return await db
+      .select()
+      .from(files)
+      .where(or(...conditions));
+  }
+
+  async batchCreateFiles(filesToCreate: InsertFile[]): Promise<File[]> {
+    if (filesToCreate.length === 0) return [];
+    
+    return await db
+      .insert(files)
+      .values(filesToCreate)
+      .returning();
+  }
+
+  async batchUpdateFiles(updates: { id: string; data: Partial<File> }[]): Promise<File[]> {
+    if (updates.length === 0) return [];
+    
+    const results: File[] = [];
+    
+    // Use individual updates since PostgreSQL batch updates with different values are complex
+    for (const update of updates) {
+      const [updated] = await db
+        .update(files)
+        .set({ ...update.data, updatedAt: new Date() })
+        .where(eq(files.id, update.id))
+        .returning();
+      if (updated) results.push(updated);
+    }
+    
+    return results;
   }
 }
 
