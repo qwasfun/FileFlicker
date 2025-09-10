@@ -7,7 +7,7 @@ import {
   type VideoProgress, type InsertVideoProgress
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, like, and } from "drizzle-orm";
+import { eq, desc, sql, like, and, or } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -238,7 +238,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(files)
-      .where(and(...conditions));
+      .where(or(...conditions));
   }
 }
 

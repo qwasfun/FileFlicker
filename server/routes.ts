@@ -153,7 +153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start manual scan
   app.post("/api/scan/start", async (req, res) => {
     try {
-      const scanDirectory = process.env.SCAN_DIRECTORY || "./data";
+      const scanDirectory = process.env.SCAN_DIRECTORY || "data";
       await fileScanner.startScan(scanDirectory);
       res.json({ message: "Scan started successfully" });
     } catch (error) {
