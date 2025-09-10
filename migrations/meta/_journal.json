@@ -15,6 +15,13 @@
       "when": 1757269888032,
       "tag": "0001_unknown_hannibal_king",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1757483301866,
+      "tag": "0002_burly_loki",
+      "breakpoints": true
     }
   ]
 }

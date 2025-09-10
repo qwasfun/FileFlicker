@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -15,7 +15,7 @@ export const directories = pgTable("directories", {
   path: text("path").notNull().unique(),
   parentId: varchar("parent_id"),
   fileCount: integer("file_count").default(0),
-  totalSize: integer("total_size").default(0),
+  totalSize: bigint('total_size', { mode: 'number'}).default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -27,7 +27,7 @@ export const files = pgTable("files", {
   directoryId: varchar("directory_id").notNull(),
   type: text("type").notNull(), // 'video', 'image', 'audio', 'document', 'other'
   extension: text("extension").notNull(),
-  size: integer("size").notNull(),
+  size: bigint('size', { mode: 'number' }).notNull(),
   thumbnailPath: text("thumbnail_path"),
   duration: integer("duration"), // for video/audio files in seconds
   width: integer("width"), // for images/videos
