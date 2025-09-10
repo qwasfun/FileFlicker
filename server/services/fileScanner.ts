@@ -10,8 +10,8 @@ class FileScanner {
   private deletedFiles: string[] = []; // Track files that exist in DB but not on disk
   
   constructor() {
-    // Schedule scan every 5 minutes
-    cron.schedule("*/5 * * * *", () => {
+    // Schedule scan every 1 hour
+    cron.schedule("* */1 * * *", () => {
       this.scheduledScan();
     });
   }
