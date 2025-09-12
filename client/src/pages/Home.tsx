@@ -5,6 +5,7 @@ import FileGrid from "@/components/FileGrid";
 import VideoModal from "@/components/VideoModal";
 import FileInfoModal from "@/components/FileInfoModal";
 import CleanupModal from "@/components/CleanupModal";
+import EmptyDirectoriesModal from "@/components/EmptyDirectoriesModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,6 +21,7 @@ export default function Home() {
   const [showFileInfo, setShowFileInfo] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [showEmptyDirectoriesModal, setShowEmptyDirectoriesModal] = useState(false);
   const [fileFilters, setFileFilters] = useState({
     hideSubtitles: false,
     hideUrls: false,
@@ -93,6 +95,11 @@ export default function Home() {
   const { data: cleanupStatus } = useQuery<{ deletedFileCount: number; hasDeletedFiles: boolean }>({
     queryKey: ["/api/cleanup/status"],
     refetchInterval: 30000, // Check every 30 seconds
+  });
+
+  const { data: emptyDirectories = [] } = useQuery<Directory[]>({
+    queryKey: ["/api/directories/empty"],
+    refetchInterval: 60000, // Check every minute
   });
 
   const handleFileSelect = (file: File) => {
@@ -190,6 +197,20 @@ export default function Home() {
                 >
                   <i className="fas fa-trash text-sm"></i>
                   <span>清理 ({cleanupStatus.deletedFileCount})</span>
+                </Button>
+              )}
+
+              {/* Empty Directories Button */}
+              {emptyDirectories.length > 0 && (
+                <Button
+                  data-testid="button-empty-directories"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowEmptyDirectoriesModal(true)}
+                  className="flex items-center space-x-2"
+                >
+                  <i className="fas fa-folder-open text-sm"></i>
+                  <span>删除空文件夹 ({emptyDirectories.length})</span>
                 </Button>
               )}
 
@@ -373,6 +394,11 @@ export default function Home() {
       <CleanupModal
         open={showCleanupModal}
         onClose={() => setShowCleanupModal(false)}
+      />
+      
+      <EmptyDirectoriesModal
+        open={showEmptyDirectoriesModal}
+        onClose={() => setShowEmptyDirectoriesModal(false)}
       />
     </div>
   );

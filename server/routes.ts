@@ -2,8 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { fileScanner } from "./services/fileScanner";
+import { deleteDirectoriesSchema } from "@shared/schema";
 import path from "path";
 import fs from "fs";
+import fsp from "fs/promises";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get directories
@@ -273,6 +275,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to get cleanup status" });
+    }
+  });
+
+  // Get empty directories (directories with no files and no subdirectories)
+  app.get("/api/directories/empty", async (req, res) => {
+    try {
+      const emptyDirectories = await storage.getEmptyDirectories();
+      res.json(emptyDirectories);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get empty directories" });
+    }
+  });
+
+  // Delete empty directories
+  app.post("/api/directories/delete-empty", async (req, res) => {
+    try {
+      // Validate request body with Zod schema
+      const validation = deleteDirectoriesSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: "Invalid request body", 
+          details: validation.error.issues 
+        });
+      }
+
+      const { directoryIds } = validation.data;
+      const scanRoot = path.resolve(process.env.SCAN_DIRECTORY || "data");
+      const deletedDirs: string[] = [];
+      const errors: string[] = [];
+
+      // Verify directories are actually empty and safe to delete
+      for (const dirId of directoryIds) {
+        try {
+          const directory = await storage.getDirectory(dirId);
+          if (!directory) {
+            errors.push(`Directory ${dirId} not found in database`);
+            continue;
+          }
+
+          // CRITICAL SECURITY: Validate path is within scan root
+          const resolvedPath = path.resolve(directory.path);
+          if (!resolvedPath.startsWith(scanRoot)) {
+            errors.push(`Directory ${directory.name} is outside scan root - deletion denied for security`);
+            continue;
+          }
+
+          // Check if directory has files
+          const filesInDir = await storage.getFiles(dirId);
+          if (filesInDir.length > 0) {
+            errors.push(`Directory ${directory.name} is not empty (contains ${filesInDir.length} files)`);
+            continue;
+          }
+
+          // Check if directory has subdirectories
+          const childDirs = await storage.getChildDirectories(dirId);
+          if (childDirs.length > 0) {
+            errors.push(`Directory ${directory.name} is not empty (contains ${childDirs.length} subdirectories)`);
+            continue;
+          }
+
+          // Handle filesystem deletion with proper error categorization
+          let filesystemDeleted = false;
+          let shouldDeleteFromDB = false;
+          
+          try {
+            // Check if directory exists on filesystem
+            await fsp.access(directory.path);
+            
+            // Attempt to remove directory from filesystem
+            await fsp.rmdir(directory.path);
+            filesystemDeleted = true;
+            shouldDeleteFromDB = true;
+            console.log(`Removed empty directory from filesystem: ${directory.path}`);
+          } catch (fsError: any) {
+            // Categorize filesystem errors
+            if (fsError.code === 'ENOENT') {
+              // Directory doesn't exist on disk - safe to clean up database record
+              shouldDeleteFromDB = true;
+              console.log(`Directory ${directory.path} doesn't exist on filesystem, cleaning up database record`);
+            } else if (fsError.code === 'ENOTEMPTY') {
+              // Directory not empty on filesystem - don't delete from database
+              errors.push(`Directory ${directory.name} is not empty on filesystem`);
+              continue;
+            } else if (fsError.code === 'EACCES' || fsError.code === 'EPERM') {
+              // Permission denied - don't delete from database
+              errors.push(`Permission denied to delete directory ${directory.name}`);
+              continue;
+            } else {
+              // Other filesystem errors - don't delete from database
+              errors.push(`Filesystem error deleting ${directory.name}: ${fsError.message}`);
+              continue;
+            }
+          }
+
+          // Only delete from database if filesystem deletion succeeded or file doesn't exist (ENOENT)
+          if (shouldDeleteFromDB) {
+            await storage.deleteDirectory(dirId);
+            deletedDirs.push(directory.name);
+            console.log(`Deleted directory from database: ${directory.name} (${directory.path})`);
+          }
+        } catch (error) {
+          errors.push(`Error processing directory ${dirId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Return comprehensive results
+      const response: any = {
+        message: `Processing completed: ${deletedDirs.length} directories deleted`,
+        deletedDirectories: deletedDirs
+      };
+
+      if (errors.length > 0) {
+        response.errors = errors;
+        response.partialSuccess = deletedDirs.length > 0;
+      }
+
+      const statusCode = errors.length > 0 ? (deletedDirs.length > 0 ? 207 : 400) : 200;
+      res.status(statusCode).json(response);
+    } catch (error) {
+      console.error("Error deleting empty directories:", error);
+      res.status(500).json({ 
+        error: "Failed to delete empty directories",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 

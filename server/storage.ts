@@ -7,7 +7,7 @@ import {
   type VideoProgress, type InsertVideoProgress
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, like, and, or, inArray } from "drizzle-orm";
+import { eq, desc, sql, like, and, or, inArray, isNull } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -20,6 +20,9 @@ export interface IStorage {
   getDirectoryByPath(path: string): Promise<Directory | undefined>;
   createDirectory(directory: InsertDirectory): Promise<Directory>;
   updateDirectory(id: string, updates: Partial<Directory>): Promise<Directory>;
+  deleteDirectory(id: string): Promise<void>;
+  getEmptyDirectories(): Promise<Directory[]>;
+  getChildDirectories(parentId: string): Promise<Directory[]>;
   
   // File operations
   getFiles(directoryId?: string, search?: string): Promise<File[]>;
@@ -102,6 +105,36 @@ export class DatabaseStorage implements IStorage {
       .where(eq(directories.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteDirectory(id: string): Promise<void> {
+    await db.delete(directories).where(eq(directories.id, id));
+  }
+
+  async getEmptyDirectories(): Promise<Directory[]> {
+    // Find directories with no files (fileCount = 0 or null)
+    const emptyDirs = await db
+      .select()
+      .from(directories)
+      .where(or(eq(directories.fileCount, 0), isNull(directories.fileCount)));
+    
+    // Filter out directories that have child directories
+    const result: Directory[] = [];
+    for (const dir of emptyDirs) {
+      const childDirs = await this.getChildDirectories(dir.id);
+      if (childDirs.length === 0) {
+        result.push(dir);
+      }
+    }
+    
+    return result;
+  }
+
+  async getChildDirectories(parentId: string): Promise<Directory[]> {
+    return await db
+      .select()
+      .from(directories)
+      .where(eq(directories.parentId, parentId));
   }
 
   async getFiles(directoryId?: string, search?: string): Promise<File[]> {

@@ -89,6 +89,11 @@ export const insertVideoProgressSchema = createInsertSchema(videoProgress).omit(
   updatedAt: true,
 });
 
+// Schema for deleting empty directories
+export const deleteDirectoriesSchema = z.object({
+  directoryIds: z.array(z.string().uuid()),
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Directory = typeof directories.$inferSelect;
@@ -99,3 +104,4 @@ export type ScanJob = typeof scanJobs.$inferSelect;
 export type InsertScanJob = z.infer<typeof insertScanJobSchema>;
 export type VideoProgress = typeof videoProgress.$inferSelect;
 export type InsertVideoProgress = z.infer<typeof insertVideoProgressSchema>;
+export type DeleteDirectoriesRequest = z.infer<typeof deleteDirectoriesSchema>;
