@@ -7,7 +7,7 @@ import {
   type VideoProgress, type InsertVideoProgress
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, like, and, or } from "drizzle-orm";
+import { eq, desc, sql, like, and, or, inArray } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -51,6 +51,7 @@ export interface IStorage {
   getFilesByPaths(paths: string[]): Promise<File[]>;
   batchCreateFiles(files: InsertFile[]): Promise<File[]>;
   batchUpdateFiles(updates: { id: string; data: Partial<File> }[]): Promise<File[]>;
+  batchDeleteFiles(fileIds: string[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -239,11 +240,10 @@ export class DatabaseStorage implements IStorage {
   async getDeletedFilesByIds(fileIds: string[]): Promise<File[]> {
     if (fileIds.length === 0) return [];
     
-    const conditions = fileIds.map(id => eq(files.id, id));
     return await db
       .select()
       .from(files)
-      .where(or(...conditions));
+      .where(inArray(files.id, fileIds));
   }
 
   async getFilesByPaths(paths: string[]): Promise<File[]> {
@@ -281,6 +281,17 @@ export class DatabaseStorage implements IStorage {
     }
     
     return results;
+  }
+
+  async batchDeleteFiles(fileIds: string[]): Promise<void> {
+    if (fileIds.length === 0) return;
+    
+    // Chunk large arrays to avoid SQL parameter limits
+    const chunkSize = 500;
+    for (let i = 0; i < fileIds.length; i += chunkSize) {
+      const chunk = fileIds.slice(i, i + chunkSize);
+      await db.delete(files).where(inArray(files.id, chunk));
+    }
   }
 }
 
