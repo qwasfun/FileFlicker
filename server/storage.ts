@@ -55,6 +55,19 @@ export interface IStorage {
   batchCreateFiles(files: InsertFile[]): Promise<File[]>;
   batchUpdateFiles(updates: { id: string; data: Partial<File> }[]): Promise<File[]>;
   batchDeleteFiles(fileIds: string[]): Promise<void>;
+  
+  // Treemap data
+  getTreemapData(): Promise<TreemapNode>;
+}
+
+export interface TreemapNode {
+  name: string;
+  value?: number;
+  size?: number;
+  type?: 'directory' | 'file';
+  path?: string;
+  id?: string;
+  children?: TreemapNode[];
 }
 
 export class DatabaseStorage implements IStorage {
@@ -324,6 +337,86 @@ export class DatabaseStorage implements IStorage {
     for (let i = 0; i < fileIds.length; i += chunkSize) {
       const chunk = fileIds.slice(i, i + chunkSize);
       await db.delete(files).where(inArray(files.id, chunk));
+    }
+  }
+
+  async getTreemapData(): Promise<TreemapNode> {
+    // Get all directories and files
+    const allDirectories = await db.select().from(directories);
+    const allFiles = await db.select().from(files);
+    
+    // Create lookup maps for performance
+    const directoryMap = new Map(allDirectories.map(dir => [dir.id, dir]));
+    const filesByDirectory = new Map<string, File[]>();
+    const childrenByParent = new Map<string | null, Directory[]>();
+    
+    // Group files by directory
+    allFiles.forEach(file => {
+      if (!filesByDirectory.has(file.directoryId)) {
+        filesByDirectory.set(file.directoryId, []);
+      }
+      filesByDirectory.get(file.directoryId)!.push(file);
+    });
+    
+    // Group directories by parent
+    allDirectories.forEach(dir => {
+      if (!childrenByParent.has(dir.parentId)) {
+        childrenByParent.set(dir.parentId, []);
+      }
+      childrenByParent.get(dir.parentId)!.push(dir);
+    });
+    
+    // Build tree recursively
+    const buildTreeNode = (directory: Directory | null, isRoot = false): TreemapNode => {
+      const dirId = directory?.id || null;
+      const dirName = directory ? directory.name : 'Root';
+      const dirPath = directory ? directory.path : '';
+      
+      const children: TreemapNode[] = [];
+      let totalSize = 0;
+      
+      // Add child directories
+      const childDirs = childrenByParent.get(dirId) || [];
+      for (const childDir of childDirs) {
+        const childNode = buildTreeNode(childDir);
+        children.push(childNode);
+        totalSize += childNode.value || 0;
+      }
+      
+      // Add files in this directory
+      const filesInDir = directory ? (filesByDirectory.get(directory.id) || []) : [];
+      for (const file of filesInDir) {
+        children.push({
+          name: file.name,
+          value: Number(file.size),
+          size: Number(file.size),
+          type: 'file' as const,
+          path: file.path,
+          id: file.id
+        });
+        totalSize += Number(file.size);
+      }
+      
+      return {
+        name: dirName,
+        value: totalSize,
+        size: totalSize,
+        type: 'directory' as const,
+        path: dirPath,
+        id: directory?.id,
+        children: children.length > 0 ? children : undefined
+      };
+    };
+    
+    // Start with root directories (parentId is null)
+    const rootDirectories = childrenByParent.get(null) || [];
+    
+    if (rootDirectories.length === 1) {
+      // If there's only one root directory, use it as the root
+      return buildTreeNode(rootDirectories[0]);
+    } else {
+      // If there are multiple root directories or none, create a virtual root
+      return buildTreeNode(null, true);
     }
   }
 }

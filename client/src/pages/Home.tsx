@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import Sidebar from "@/components/Sidebar";
 import FileGrid from "@/components/FileGrid";
 import VideoModal from "@/components/VideoModal";
@@ -12,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Directory, File } from "@shared/schema";
 
 export default function Home() {
+  const [, setLocation] = useLocation();
   const [selectedDirectory, setSelectedDirectory] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -184,6 +186,18 @@ export default function Home() {
               >
                 <i className="fas fa-filter text-sm"></i>
                 <span>Filters</span>
+              </Button>
+
+              {/* Treemap Button */}
+              <Button
+                data-testid="button-treemap"
+                size="sm"
+                variant="outline"
+                onClick={() => setLocation("/treemap")}
+                className="flex items-center space-x-2"
+              >
+                <i className="fas fa-chart-pie text-sm"></i>
+                <span>Treemap</span>
               </Button>
 
               {/* Cleanup Button */}

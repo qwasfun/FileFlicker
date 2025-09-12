@@ -412,6 +412,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get treemap data for visualization
+  app.get("/api/treemap", async (req, res) => {
+    try {
+      const treemapData = await storage.getTreemapData();
+      res.json(treemapData);
+    } catch (error) {
+      console.error("Error getting treemap data:", error);
+      res.status(500).json({ 
+        error: "Failed to get treemap data",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
