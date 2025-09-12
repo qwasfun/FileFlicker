@@ -316,8 +316,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // CRITICAL SECURITY: Validate path is within scan root
           const resolvedPath = path.resolve(directory.path);
-          if (!resolvedPath.startsWith(scanRoot)) {
+          const resolvedScanRoot = path.resolve(scanRoot);
+          const relativePath = path.relative(resolvedScanRoot, resolvedPath);
+          
+          // Block if path is outside scan root (starts with '..' or is absolute)
+          if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
             errors.push(`Directory ${directory.name} is outside scan root - deletion denied for security`);
+            continue;
+          }
+          
+          // Prevent deletion of scan root itself
+          if (relativePath === '' || relativePath === '.') {
+            errors.push(`Cannot delete scan root directory - deletion denied for security`);
             continue;
           }
 
@@ -343,8 +353,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Check if directory exists on filesystem
             await fsp.access(directory.path);
             
-            // Attempt to remove directory from filesystem
-            await fsp.rmdir(directory.path);
+            // Attempt to remove directory from filesystem (non-recursive)
+            await fsp.rm(directory.path, { recursive: false });
             filesystemDeleted = true;
             shouldDeleteFromDB = true;
             console.log(`Removed empty directory from filesystem: ${directory.path}`);
