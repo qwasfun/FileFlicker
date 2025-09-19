@@ -93,7 +93,12 @@ export default function Home() {
     queryKey: ["/api/stats"],
   });
 
-  const { data: cleanupStatus } = useQuery<{ deletedFileCount: number; hasDeletedFiles: boolean }>({
+  const { data: cleanupStatus } = useQuery<{ 
+    deletedFileCount: number; 
+    hasDeletedFiles: boolean;
+    emptyDirectoryCount: number;
+    hasEmptyDirectories: boolean;
+  }>({
     queryKey: ["/api/cleanup/status"],
     refetchInterval: 30000, // Check every 30 seconds
   });
