@@ -267,18 +267,24 @@ class FileScanner {
   }
 
   async cleanupDeletedFiles(fileIds: string[]): Promise<void> {
-    for (const fileId of fileIds) {
-      try {
-        await storage.deleteFile(fileId);
-        // Remove from our tracking list
+    if (fileIds.length === 0) return;
+
+    try {
+      // Use batch deletion for better performance
+      await storage.batchDeleteFiles(fileIds);
+      
+      // Remove all successfully deleted files from tracking list
+      for (const fileId of fileIds) {
         const index = this.deletedFiles.indexOf(fileId);
         if (index > -1) {
           this.deletedFiles.splice(index, 1);
         }
-        console.log(`Cleaned up deleted file with ID: ${fileId}`);
-      } catch (error) {
-        console.error(`Error cleaning up file ${fileId}:`, error);
       }
+      
+      console.log(`Batch cleanup completed: deleted ${fileIds.length} files from database`);
+    } catch (error) {
+      console.error(`Error during batch cleanup of ${fileIds.length} files:`, error);
+      throw error; // Re-throw to allow API route to handle error response
     }
   }
 }
