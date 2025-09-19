@@ -200,18 +200,21 @@ export default function Home() {
               </Button>
 
               {/* Cleanup Button */}
-              {cleanupStatus?.hasDeletedFiles && (
-                <Button
-                  data-testid="button-cleanup"
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => setShowCleanupModal(true)}
-                  className="flex items-center space-x-2"
-                >
-                  <i className="fas fa-trash text-sm"></i>
-                  <span>清理 ({cleanupStatus.deletedFileCount})</span>
-                </Button>
-              )}
+              <Button
+                data-testid="button-cleanup"
+                size="sm"
+                variant={cleanupStatus?.hasDeletedFiles || cleanupStatus?.hasEmptyDirectories ? "destructive" : "outline"}
+                onClick={() => setShowCleanupModal(true)}
+                className="flex items-center space-x-2"
+              >
+                <i className="fas fa-database text-sm"></i>
+                <span>
+                  数据库清理
+                  {(cleanupStatus?.deletedFileCount ?? 0) + (cleanupStatus?.emptyDirectoryCount ?? 0) > 0 && 
+                    ` (${(cleanupStatus?.deletedFileCount ?? 0) + (cleanupStatus?.emptyDirectoryCount ?? 0)})`
+                  }
+                </span>
+              </Button>
 
               {/* View Toggle */}
               <div className="flex bg-muted rounded-lg p-1">
