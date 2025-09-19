@@ -52,6 +52,14 @@ Preferred communication style: Simple, everyday language.
 - **Logging**: Structured request/response logging with performance metrics
 - **Path Aliases**: TypeScript path mapping for clean imports
 
+## Configuration Options
+- **SCAN_SCHEDULE**: Cron expression for automatic file scanning frequency (default: "0 */1 * * *" for hourly scans)
+  - Set to "disabled" to turn off automatic scanning
+  - Examples: "0 */6 * * *" (every 6 hours), "0 9 * * *" (daily at 9 AM)
+- **SCAN_DIRECTORY**: Root directory for file scanning (default: "data")
+- **DATABASE_URL**: PostgreSQL connection string (required)
+- **NODE_ENV**: Environment mode (development/production)
+
 # External Dependencies
 
 ## Database Services
@@ -72,9 +80,10 @@ Preferred communication style: Simple, everyday language.
 - **PostCSS**: CSS processing with Tailwind CSS and Autoprefixer
 
 ## File Processing
-- **Node Cron**: Scheduled file system scanning every 5 minutes
+- **Node Cron**: Configurable scheduled file system scanning (default: every hour)
 - **File System APIs**: Native Node.js fs/promises for file operations
 - **Path Utilities**: Cross-platform path handling and resolution
+- **Batch Operations**: Optimized bulk database operations for scanning and cleanup
 
 ## Deployment Platform
 - **Replit Integration**: Custom banner injection and environment-specific optimizations
