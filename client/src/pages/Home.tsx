@@ -8,6 +8,7 @@ import CleanupModal from "@/components/CleanupModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useFileViewTracker } from "@/utils/fileViewTracker";
 import type { Directory, File } from "@shared/schema";
 
 export default function Home() {
@@ -20,6 +21,8 @@ export default function Home() {
   const [showFileInfo, setShowFileInfo] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showCleanupModal, setShowCleanupModal] = useState(false);
+  
+  const { trackFileView } = useFileViewTracker();
   const [fileFilters, setFileFilters] = useState({
     hideSubtitles: false,
     hideUrls: false,
@@ -95,16 +98,26 @@ export default function Home() {
     refetchInterval: 30000, // Check every 30 seconds
   });
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = (file: File, source: 'grid' | 'recent' = 'grid') => {
     setSelectedFile(file);
     if (file.type === "video") {
+      // Track different view types based on source
+      if (source === 'grid') {
+        trackFileView(file.id, "stream");
+      }
+      // Don't track recent file clicks to avoid duplicate entries
       setShowVideoModal(true);
     } else {
+      // Track info views only for grid clicks
+      if (source === 'grid') {
+        trackFileView(file.id, "info_view");
+      }
       setShowFileInfo(true);
     }
   };
 
   const handleDownload = (file: File) => {
+    trackFileView(file.id, "download");
     window.open(`/api/files/${file.id}/download`, '_blank');
   };
 
@@ -133,6 +146,8 @@ export default function Home() {
         selectedDirectory={selectedDirectory}
         onDirectorySelect={setSelectedDirectory}
         stats={stats}
+        onFileSelect={handleFileSelect}
+        onFileDownload={handleDownload}
       />
       
       <div className="flex-1 flex flex-col overflow-hidden">

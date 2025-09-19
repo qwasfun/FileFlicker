@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import type { Directory, ScanJob } from "@shared/schema";
+import RecentFiles from "@/components/RecentFiles";
+import type { Directory, ScanJob, File } from "@shared/schema";
 
 interface SidebarProps {
   directories: Directory[];
   selectedDirectory: string;
   onDirectorySelect: (directoryId: string) => void;
   stats?: { totalFiles: number; totalSize: number };
+  onFileSelect: (file: File, source?: 'grid' | 'recent') => void;
+  onFileDownload: (file: File) => void;
 }
 
-export default function Sidebar({ directories, selectedDirectory, onDirectorySelect, stats }: SidebarProps) {
+export default function Sidebar({ directories, selectedDirectory, onDirectorySelect, stats, onFileSelect, onFileDownload }: SidebarProps) {
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
 
@@ -192,6 +195,14 @@ export default function Sidebar({ directories, selectedDirectory, onDirectorySel
             <div className="text-xs text-muted-foreground">Total Size</div>
           </div>
         </div>
+      </div>
+
+      {/* Recent Files Section */}
+      <div className="mt-6">
+        <RecentFiles 
+          onFileSelect={(file) => onFileSelect(file, 'recent')}
+          onFileDownload={onFileDownload}
+        />
       </div>
     </div>
   );

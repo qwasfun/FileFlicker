@@ -1,10 +1,11 @@
 import { 
-  users, directories, files, scanJobs, videoProgress,
+  users, directories, files, scanJobs, videoProgress, recentFileViews,
   type User, type InsertUser,
   type Directory, type InsertDirectory,
   type File, type InsertFile,
   type ScanJob, type InsertScanJob,
-  type VideoProgress, type InsertVideoProgress
+  type VideoProgress, type InsertVideoProgress,
+  type RecentFileView, type InsertRecentFileView
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, like, and, or } from "drizzle-orm";
@@ -42,6 +43,10 @@ export interface IStorage {
   saveVideoProgress(progress: InsertVideoProgress): Promise<VideoProgress>;
   updateVideoProgress(userId: string, fileId: string, updates: Partial<VideoProgress>): Promise<VideoProgress>;
   getUserVideoProgress(userId: string): Promise<VideoProgress[]>;
+  
+  // Recent file views operations
+  recordFileView(view: InsertRecentFileView): Promise<RecentFileView>;
+  getRecentFileViews(userId: string, limit?: number): Promise<Array<RecentFileView & { file: File }>>;
   
   // File cleanup operations
   getAllFiles(): Promise<File[]>;
@@ -290,6 +295,40 @@ export class DatabaseStorage implements IStorage {
     // Use Drizzle's inArray operator for batch deletion
     const { inArray } = await import("drizzle-orm");
     await db.delete(files).where(inArray(files.id, fileIds));
+  }
+
+  async recordFileView(view: InsertRecentFileView): Promise<RecentFileView> {
+    // Remove older views for the same user-file combination to keep only the latest
+    await db.delete(recentFileViews)
+      .where(and(
+        eq(recentFileViews.userId, view.userId),
+        eq(recentFileViews.fileId, view.fileId)
+      ));
+
+    const [created] = await db
+      .insert(recentFileViews)
+      .values(view)
+      .returning();
+    return created;
+  }
+
+  async getRecentFileViews(userId: string, limit: number = 20): Promise<Array<RecentFileView & { file: File }>> {
+    const views = await db
+      .select({
+        id: recentFileViews.id,
+        userId: recentFileViews.userId,
+        fileId: recentFileViews.fileId,
+        viewType: recentFileViews.viewType,
+        viewedAt: recentFileViews.viewedAt,
+        file: files
+      })
+      .from(recentFileViews)
+      .innerJoin(files, eq(recentFileViews.fileId, files.id))
+      .where(eq(recentFileViews.userId, userId))
+      .orderBy(desc(recentFileViews.viewedAt))
+      .limit(limit);
+
+    return views;
   }
 }
 

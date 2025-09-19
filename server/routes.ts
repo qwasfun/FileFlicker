@@ -276,6 +276,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Record file view
+  app.post("/api/recent-views/:fileId", async (req, res) => {
+    try {
+      const { fileId } = req.params;
+      const { viewType } = req.body;
+      
+      // For now, we'll use a hardcoded user ID since authentication isn't implemented
+      const userId = "default-user";
+
+      // Validate inputs
+      if (!fileId || !viewType) {
+        return res.status(400).json({ error: "File ID and view type are required" });
+      }
+
+      const validViewTypes = ['download', 'stream', 'modal_view', 'info_view'];
+      if (!validViewTypes.includes(viewType)) {
+        return res.status(400).json({ error: "Invalid view type" });
+      }
+
+      // Check if file exists
+      const file = await storage.getFile(fileId);
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+
+      const view = await storage.recordFileView({
+        userId,
+        fileId,
+        viewType
+      });
+
+      res.json(view);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to record file view" });
+    }
+  });
+
+  // Get recent file views for user
+  app.get("/api/recent-views", async (req, res) => {
+    try {
+      // For now, we'll use a hardcoded user ID since authentication isn't implemented
+      const userId = "default-user";
+      const limit = parseInt(req.query.limit as string) || 20;
+
+      if (limit > 100) {
+        return res.status(400).json({ error: "Limit cannot exceed 100" });
+      }
+
+      const recentViews = await storage.getRecentFileViews(userId, limit);
+      res.json(recentViews);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get recent file views" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

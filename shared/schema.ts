@@ -62,6 +62,14 @@ export const videoProgress = pgTable("video_progress", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const recentFileViews = pgTable("recent_file_views", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  fileId: varchar("file_id").notNull(),
+  viewType: text("view_type").notNull(), // 'download', 'stream', 'modal_view', 'info_view'
+  viewedAt: timestamp("viewed_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -89,6 +97,11 @@ export const insertVideoProgressSchema = createInsertSchema(videoProgress).omit(
   updatedAt: true,
 });
 
+export const insertRecentFileViewSchema = createInsertSchema(recentFileViews).omit({
+  id: true,
+  viewedAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Directory = typeof directories.$inferSelect;
@@ -99,3 +112,5 @@ export type ScanJob = typeof scanJobs.$inferSelect;
 export type InsertScanJob = z.infer<typeof insertScanJobSchema>;
 export type VideoProgress = typeof videoProgress.$inferSelect;
 export type InsertVideoProgress = z.infer<typeof insertVideoProgressSchema>;
+export type RecentFileView = typeof recentFileViews.$inferSelect;
+export type InsertRecentFileView = z.infer<typeof insertRecentFileViewSchema>;
