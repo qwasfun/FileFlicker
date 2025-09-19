@@ -10,10 +10,18 @@ class FileScanner {
   private deletedFiles: string[] = []; // Track files that exist in DB but not on disk
   
   constructor() {
-    // Schedule scan every 1 hour
-    cron.schedule("* */1 * * *", () => {
-      this.scheduledScan();
-    });
+    // Get scan schedule from environment variable with default fallback
+    const scanSchedule = process.env.SCAN_SCHEDULE || "0 */1 * * *"; // Default: every hour
+    
+    // Only schedule if scan schedule is not disabled
+    if (scanSchedule !== "disabled") {
+      cron.schedule(scanSchedule, () => {
+        this.scheduledScan();
+      });
+      console.log(`Scheduled file scanning with cron expression: ${scanSchedule}`);
+    } else {
+      console.log("Automatic file scanning is disabled");
+    }
   }
 
   private async scheduledScan() {
