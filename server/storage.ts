@@ -52,6 +52,11 @@ export interface IStorage {
   getAllFiles(): Promise<File[]>;
   getDeletedFilesByIds(fileIds: string[]): Promise<File[]>;
   
+  // Directory cleanup operations
+  getAllDirectories(): Promise<Directory[]>;
+  getEmptyDirectories(): Promise<Directory[]>;
+  batchDeleteDirectories(directoryIds: string[]): Promise<void>;
+  
   // Batch operations
   getFilesByPaths(paths: string[]): Promise<File[]>;
   batchCreateFiles(files: InsertFile[]): Promise<File[]>;
@@ -295,6 +300,44 @@ export class DatabaseStorage implements IStorage {
     // Use Drizzle's inArray operator for batch deletion
     const { inArray } = await import("drizzle-orm");
     await db.delete(files).where(inArray(files.id, fileIds));
+  }
+
+  async getAllDirectories(): Promise<Directory[]> {
+    return await db.select().from(directories);
+  }
+
+  async getEmptyDirectories(): Promise<Directory[]> {
+    // Get directories that have no files and no subdirectories
+    const directoriesWithCounts = await db
+      .select({
+        id: directories.id,
+        name: directories.name,
+        path: directories.path,
+        parentId: directories.parentId,
+        fileCount: directories.fileCount,
+        totalSize: directories.totalSize,
+        createdAt: directories.createdAt,
+        updatedAt: directories.updatedAt
+      })
+      .from(directories)
+      .leftJoin(files, eq(directories.id, files.directoryId))
+      .leftJoin(
+        sql.raw('directories as sub_dirs'),
+        sql.raw('directories.id = sub_dirs.parent_id')
+      )
+      .groupBy(directories.id, directories.name, directories.path, 
+               directories.parentId, directories.fileCount, directories.totalSize,
+               directories.createdAt, directories.updatedAt)
+      .having(sql`COUNT(${files.id}) = 0 AND COUNT(sub_dirs.id) = 0`);
+
+    return directoriesWithCounts;
+  }
+
+  async batchDeleteDirectories(directoryIds: string[]): Promise<void> {
+    if (directoryIds.length === 0) return;
+    
+    const { inArray } = await import("drizzle-orm");
+    await db.delete(directories).where(inArray(directories.id, directoryIds));
   }
 
   async recordFileView(view: InsertRecentFileView): Promise<RecentFileView> {

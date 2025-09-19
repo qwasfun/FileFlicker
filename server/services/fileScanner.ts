@@ -8,6 +8,7 @@ import type { InsertDirectory, InsertFile } from "@shared/schema";
 class FileScanner {
   private currentScanJob: string | null = null;
   private deletedFiles: string[] = []; // Track files that exist in DB but not on disk
+  private emptyDirectories: string[] = []; // Track empty directories
   
   constructor() {
     // Get scan schedule from environment variable with default fallback
@@ -57,8 +58,9 @@ class FileScanner {
     try {
       await this.scanDirectory(directory, scanJob.id);
       
-      // Check for deleted files after scanning
+      // Check for deleted files and empty directories after scanning
       await this.checkForDeletedFiles(scanJob.id);
+      await this.checkForEmptyDirectories(scanJob.id);
       
       await storage.updateScanJob(scanJob.id, {
         status: "completed",
@@ -274,6 +276,10 @@ class FileScanner {
     return [...this.deletedFiles];
   }
 
+  getEmptyDirectories(): string[] {
+    return [...this.emptyDirectories];
+  }
+
   async cleanupDeletedFiles(fileIds: string[]): Promise<void> {
     if (fileIds.length === 0) return;
 
@@ -292,6 +298,67 @@ class FileScanner {
       console.log(`Batch cleanup completed: deleted ${fileIds.length} files from database`);
     } catch (error) {
       console.error(`Error during batch cleanup of ${fileIds.length} files:`, error);
+      throw error; // Re-throw to allow API route to handle error response
+    }
+  }
+
+  private async checkForEmptyDirectories(scanJobId: string): Promise<void> {
+    console.log("Checking for empty directories...");
+    this.emptyDirectories = [];
+
+    try {
+      // Get empty directories from database (directories with no files and no subdirectories)
+      const emptyDirs = await storage.getEmptyDirectories();
+      
+      for (const directory of emptyDirs) {
+        try {
+          // Check if directory still exists on disk
+          const stats = await fs.stat(directory.path);
+          if (!stats.isDirectory()) {
+            this.emptyDirectories.push(directory.id);
+            console.log(`Found directory that is no longer a directory: ${directory.name} (${directory.path})`);
+            continue;
+          }
+
+          // Check if directory is actually empty on disk
+          const files = await fs.readdir(directory.path);
+          if (files.length === 0) {
+            this.emptyDirectories.push(directory.id);
+            console.log(`Found empty directory: ${directory.name} (${directory.path})`);
+          }
+        } catch (error) {
+          // Directory doesn't exist on disk anymore
+          this.emptyDirectories.push(directory.id);
+          console.log(`Found deleted directory: ${directory.name} (${directory.path})`);
+        }
+      }
+
+      if (this.emptyDirectories.length > 0) {
+        console.log(`Found ${this.emptyDirectories.length} empty directories`);
+      }
+    } catch (error) {
+      console.error("Error checking for empty directories:", error);
+    }
+  }
+
+  async cleanupEmptyDirectories(directoryIds: string[]): Promise<void> {
+    if (directoryIds.length === 0) return;
+
+    try {
+      // Use batch deletion for better performance
+      await storage.batchDeleteDirectories(directoryIds);
+      
+      // Remove all successfully deleted directories from tracking list
+      for (const directoryId of directoryIds) {
+        const index = this.emptyDirectories.indexOf(directoryId);
+        if (index > -1) {
+          this.emptyDirectories.splice(index, 1);
+        }
+      }
+      
+      console.log(`Batch cleanup completed: deleted ${directoryIds.length} directories from database`);
+    } catch (error) {
+      console.error(`Error during batch cleanup of ${directoryIds.length} directories:`, error);
       throw error; // Re-throw to allow API route to handle error response
     }
   }
