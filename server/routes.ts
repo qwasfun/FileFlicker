@@ -267,12 +267,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/cleanup/status", async (req, res) => {
     try {
       const deletedFileIds = fileScanner.getDeletedFiles();
+      const emptyDirectoryIds = fileScanner.getEmptyDirectories();
       res.json({ 
         deletedFileCount: deletedFileIds.length,
-        hasDeletedFiles: deletedFileIds.length > 0 
+        hasDeletedFiles: deletedFileIds.length > 0,
+        emptyDirectoryCount: emptyDirectoryIds.length,
+        hasEmptyDirectories: emptyDirectoryIds.length > 0
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to get cleanup status" });
+    }
+  });
+
+  // Get empty directories (directories that exist in DB but are empty on disk)
+  app.get("/api/cleanup/empty-directories", async (req, res) => {
+    try {
+      const emptyDirectoryIds = fileScanner.getEmptyDirectories();
+      const emptyDirectories = await storage.getDirectoriesByIds(emptyDirectoryIds);
+      res.json(emptyDirectories);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get empty directories" });
+    }
+  });
+
+  // Cleanup empty directories from database
+  app.post("/api/cleanup/delete-directories", async (req, res) => {
+    try {
+      const { directoryIds } = req.body;
+      
+      if (!Array.isArray(directoryIds)) {
+        return res.status(400).json({ error: "directoryIds must be an array" });
+      }
+
+      await fileScanner.cleanupEmptyDirectories(directoryIds);
+      res.json({ message: `Successfully cleaned up ${directoryIds.length} directories from database` });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to cleanup empty directories" });
     }
   });
 

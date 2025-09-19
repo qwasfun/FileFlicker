@@ -55,6 +55,7 @@ export interface IStorage {
   // Directory cleanup operations
   getAllDirectories(): Promise<Directory[]>;
   getEmptyDirectories(): Promise<Directory[]>;
+  getDirectoriesByIds(directoryIds: string[]): Promise<Directory[]>;
   batchDeleteDirectories(directoryIds: string[]): Promise<void>;
   
   // Batch operations
@@ -331,6 +332,13 @@ export class DatabaseStorage implements IStorage {
       .having(sql`COUNT(${files.id}) = 0 AND COUNT(sub_dirs.id) = 0`);
 
     return directoriesWithCounts;
+  }
+
+  async getDirectoriesByIds(directoryIds: string[]): Promise<Directory[]> {
+    if (directoryIds.length === 0) return [];
+    
+    const { inArray } = await import("drizzle-orm");
+    return await db.select().from(directories).where(inArray(directories.id, directoryIds));
   }
 
   async batchDeleteDirectories(directoryIds: string[]): Promise<void> {
