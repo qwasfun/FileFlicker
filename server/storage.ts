@@ -51,6 +51,7 @@ export interface IStorage {
   getFilesByPaths(paths: string[]): Promise<File[]>;
   batchCreateFiles(files: InsertFile[]): Promise<File[]>;
   batchUpdateFiles(updates: { id: string; data: Partial<File> }[]): Promise<File[]>;
+  batchDeleteFiles(fileIds: string[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -281,6 +282,14 @@ export class DatabaseStorage implements IStorage {
     }
     
     return results;
+  }
+
+  async batchDeleteFiles(fileIds: string[]): Promise<void> {
+    if (fileIds.length === 0) return;
+    
+    // Use Drizzle's inArray operator for batch deletion
+    const { inArray } = await import("drizzle-orm");
+    await db.delete(files).where(inArray(files.id, fileIds));
   }
 }
 
